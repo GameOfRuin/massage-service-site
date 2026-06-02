@@ -12,16 +12,26 @@
 - For plain `Error` failures, `error.response` is `undefined`, so details from `error.message` were dropped.
 
 ## Fix
-- Behavior change implemented in `src/infrastructure/health/health.controller.ts`:
-  - before: `AppHealthCheckException({ message: error.response })`
-  - after: `AppHealthCheckException({ message: error.response ?? error.message ?? 'Health check failed' })`
-- Added regression coverage in `src/infrastructure/health/health.controller.regression.spec.ts`:
-  - verifies payload is preserved when `error.response` exists,
-  - verifies fallback to `error.message` when `error.response` is missing (the seeded bug).
+- Behavior change in `src/infrastructure/health/health.controller.ts` via `getHealthErrorMessage()`:
+  - before: `AppHealthCheckException({ message: error.response })` — for plain `Error`, `message` became `undefined`.
+  - after: normalize to string — `response` (string or JSON object) → else `error.message` → else `'Health check failed'`.
+- Regression lock in `src/infrastructure/health/health.controller.seeded-bug.regression.spec.ts`:
+  - `reproduces seeded bug: legacy mapper drops message when response is absent` — documents broken pre-fix mapping.
+  - `fixed GET /health maps plain Error to 503 with error.message text` — asserts new controller behavior.
+
+## Response contract (`GET /health` on dependency failure)
+| Condition | HTTP status | `AppHealthCheckException.message` |
+| --- | --- | --- |
+| `error.response` is non-empty string | `503` | same string |
+| `error.response` is object (Terminus payload) | `503` | `JSON.stringify(error.response)` |
+| plain `Error`, no `response` | `503` | `error.message` |
+| unknown / empty error | `503` | `'Health check failed'` |
+
+Successful probe: unchanged — Terminus `HealthCheck` result with `status: 'ok'` (not covered by this defect).
 
 ## Detection
-- Defect was detected during PR review from blocker feedback requiring a regression test for seeded bug.
-- Reproduced in unit-level scenario by mocking `health.check()` rejection with `new Error('postgres timeout')` and observing that old logic did not preserve this message.
+- Defect reproduced in `health.controller.seeded-bug.regression.spec.ts` by rejecting `health.check()` with `new Error('postgres timeout')`: legacy mapper returns `undefined`, fixed controller returns `message: 'postgres timeout'`.
+- Run: `npm test -- health.controller.seeded-bug.regression.spec.ts`
 
 ## Blast Radius
 - Affects all consumers of `/health` during dependency outages (DB down, timeout, transient network failures).

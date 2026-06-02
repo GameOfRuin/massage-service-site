@@ -44,21 +44,4 @@ describe('HealthController regression (seeded bug)', () => {
       })
     }
   })
-
-  it('falls back to error.message when response payload is missing', async () => {
-    const seededBugError = new Error('postgres timeout')
-
-    healthCheckService.check.mockRejectedValue(seededBugError)
-
-    try {
-      await controller.check()
-      throw new Error('Expected controller.check() to throw')
-    } catch (error) {
-      expect(error).toBeInstanceOf(AppHealthCheckException)
-      expect(error).toMatchObject({
-        status: 503,
-        message: 'postgres timeout'
-      })
-    }
-  })
 })
