@@ -1,0 +1,17 @@
+{
+  "name": "massage-service-site",
+  "version": "0.1.0",
+  "description": "Сайт для услуг массажиста: Postmortem: memory leak в кэше",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "echo \"no tests yet\" && exit 0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "ts-node": "^10.9.2",
+    "@types/node": "^20.11.0"
+  }
+}
