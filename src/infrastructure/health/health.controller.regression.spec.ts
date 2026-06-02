@@ -35,10 +35,12 @@ describe('HealthController regression (seeded bug)', () => {
       await controller.check()
       throw new Error('Expected controller.check() to throw')
     } catch (error) {
+      const expectedMessage = JSON.stringify(seededErrorPayload)
+
       expect(error).toBeInstanceOf(AppHealthCheckException)
       expect(error).toMatchObject({
         status: 503,
-        message: seededErrorPayload
+        message: expectedMessage
       })
     }
   })
