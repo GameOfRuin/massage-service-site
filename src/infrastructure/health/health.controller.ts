@@ -27,8 +27,13 @@ export class HealthController {
 
     modules.push(() => this.db.pingCheck('postgresql'))
 
-    return this.health.check(modules).catch(e => {
-      throw new AppHealthCheckException({ message: e.response })
+    return this.health.check(modules).catch(error => {
+      const healthErrorMessage =
+        error?.response ??
+        error?.message ??
+        'Health check failed'
+
+      throw new AppHealthCheckException({ message: healthErrorMessage })
     })
   }
 }

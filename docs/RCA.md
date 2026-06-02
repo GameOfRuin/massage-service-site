@@ -1,30 +1,29 @@
-# RCA: Health Smoke Test Gap
+# RCA: Health error details lost on failure
 
 ## Symptom
-- Pull request diff did not include `docs/RCA.md`, causing a PR policy violation.
-- Required RCA template fields were missing from the change set.
+- `GET /health` returned HTTP `503`, but response body could miss meaningful diagnostic details.
+- In failure cases where underlying error had only `error.message` (without `error.response`), the API could emit a generic/empty message, making incident triage slower.
 
 ## Trigger
-- A smoke test for `health` was added, but the mandatory RCA artifact was not created in the same change.
+- PostgreSQL health probe failed with a plain `Error` object (for example timeout/connection failure) that did not include Terminus-style `response` payload.
 
 ## Root Cause
-- PR checklist/process requirement ("RCA is mandatory") was not enforced at the moment of preparing the diff.
-- Focus was on test implementation and execution, while compliance artifact creation was skipped.
+- In `HealthController.check()`, catch handler mapped exception message only from `error.response`.
+- For plain `Error` failures, `error.response` is `undefined`, so details from `error.message` were dropped.
 
 ## Fix
-- Added this `docs/RCA.md` file with all required sections:
-  - symptom
-  - trigger
-  - root cause
-  - fix
-  - detection
-  - blast radius
+- Behavior change implemented in `src/infrastructure/health/health.controller.ts`:
+  - before: `AppHealthCheckException({ message: error.response })`
+  - after: `AppHealthCheckException({ message: error.response ?? error.message ?? 'Health check failed' })`
+- Added regression coverage in `src/infrastructure/health/health.controller.regression.spec.ts`:
+  - verifies payload is preserved when `error.response` exists,
+  - verifies fallback to `error.message` when `error.response` is missing (the seeded bug).
 
 ## Detection
-- The gap was detected during manual PR diff review.
-- Specifically, `docs/RCA.md` was expected by policy but absent from changed files.
+- Defect was detected during PR review from blocker feedback requiring a regression test for seeded bug.
+- Reproduced in unit-level scenario by mocking `health.check()` rejection with `new Error('postgres timeout')` and observing that old logic did not preserve this message.
 
 ## Blast Radius
-- Scope is limited to PR readiness/compliance.
-- Runtime behavior of the service is unaffected.
-- Merge/review process can be blocked until the mandatory RCA document is present.
+- Affects all consumers of `/health` during dependency outages (DB down, timeout, transient network failures).
+- Primary impact is operational: weaker observability and slower root-cause identification by on-call/monitoring systems.
+- Does not affect successful health checks or business endpoints directly.
